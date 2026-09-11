@@ -9,6 +9,6 @@ final class LanguageCoverageTests: XCTestCase {
     }
 
     func testSupportedLanguageCodes() {
-        XCTAssertEqual(Set(AppLanguage.allCases.map(\.rawValue)), ["bg", "en", "es"])
+        XCTAssertEqual(Set(AppLanguage.allCases.map(\.rawValue)), Set(["bg", "en", "es"]))
     }
 }
