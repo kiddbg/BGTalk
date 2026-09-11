@@ -9,6 +9,8 @@ struct ConversationModeView: View {
     @State private var translation = ""
     @State private var isTranslating = false
     @State private var showPermissionAlert = false
+    @State private var translationTask: Task<Void, Never>?
+    @State private var translationGeneration = 0
 
     let firstLanguage: AppLanguage
     let secondLanguage: AppLanguage
@@ -57,7 +59,6 @@ struct ConversationModeView: View {
                     .background(recognizer.isListening ? Color.red : Color.accentColor, in: Circle())
             }
             .accessibilityLabel(recognizer.isListening ? "Stop listening" : "Start listening")
-            .disabled(isTranslating)
 
             if !translation.isEmpty {
                 Button {
@@ -75,6 +76,14 @@ struct ConversationModeView: View {
             await recognizer.requestAuthorization()
             showPermissionAlert = recognizer.authorizationDenied
         }
+        .onChange(of: recognizer.transcript) { _, newTranscript in
+            guard recognizer.isListening else { return }
+            scheduleLiveTranslation(for: newTranscript)
+        }
+        .onDisappear {
+            translationTask?.cancel()
+            recognizer.stopListening()
+        }
         .alert("Microphone access needed", isPresented: $showPermissionAlert) {
             Button("OK") { }
         } message: {
@@ -88,6 +97,7 @@ struct ConversationModeView: View {
             activeSpeaker = index
             text = ""
             translation = ""
+            translationTask?.cancel()
         } label: {
             VStack(spacing: 5) {
                 Text(title).font(.caption.bold())
@@ -102,11 +112,15 @@ struct ConversationModeView: View {
 
     private func toggleListening() async {
         if recognizer.isListening {
+            translationTask?.cancel()
+            translationGeneration += 1
             recognizer.stopListening()
-            await translate(recognizer.transcript)
+            await translateFinal(recognizer.transcript)
             return
         }
 
+        translationTask?.cancel()
+        translationGeneration += 1
         text = ""
         translation = ""
         do {
@@ -116,7 +130,34 @@ struct ConversationModeView: View {
         }
     }
 
-    private func translate(_ value: String) async {
+    private func scheduleLiveTranslation(for value: String) {
+        let cleaned = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return }
+
+        translationTask?.cancel()
+        translationGeneration += 1
+        let generation = translationGeneration
+
+        translationTask = Task {
+            try? await Task.sleep(for: .milliseconds(650))
+            guard !Task.isCancelled else { return }
+            await translatePreview(cleaned, generation: generation)
+        }
+    }
+
+    private func translatePreview(_ value: String, generation: Int) async {
+        do {
+            let result = try await TranslationServiceFactory.makeService().translate(text: value, from: sourceLanguage, to: targetLanguage)
+            guard !Task.isCancelled, generation == translationGeneration, recognizer.isListening else { return }
+            text = value
+            translation = result.translatedText
+        } catch {
+            guard !Task.isCancelled, generation == translationGeneration, recognizer.isListening else { return }
+            translation = "Translation unavailable."
+        }
+    }
+
+    private func translateFinal(_ value: String) async {
         let cleaned = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return }
 
