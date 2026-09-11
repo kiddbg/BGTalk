@@ -7,24 +7,27 @@ BGTalk is an iPhone real-time conversation translation app focused on Bulgarian,
 - SwiftUI native iPhone interface
 - Bulgarian, English, and Spanish language selection
 - Native iOS speech recognition pipeline
+- Language-specific speech locales
 - Microphone and speech-recognition permission descriptions
 - Translation service abstraction
 - Translation result model
 - Translated speech playback with AVSpeechSynthesizer
-- Basic conversation history in the UI
+- Persistent local conversation history using SwiftData
+- Language swapping
+- Conversation-mode foundation
 - XcodeGen project configuration
 
 ## Current development stage
 
-The app now has the native capture → translation-service → speech-output architecture in place. The current translation implementation is intentionally a mock service so the UI and audio pipeline can be developed independently of a translation provider.
+The app now has the native capture → translation-service → speech-output architecture in place. The translation implementation is intentionally a mock service so the UI, persistence, speech recognition, and audio output can be developed independently of a translation provider.
 
-## Next implementation stages
+## Remaining implementation stages
 
 1. Connect the translation abstraction to a production translation provider.
-2. Improve streaming/partial-result translation so speech can be translated continuously.
-3. Add dedicated two-person conversation mode with separate speakers.
-4. Persist conversation history locally.
-5. Add settings, error handling, and offline/connection states.
+2. Implement true streaming/partial-result translation.
+3. Finish dedicated two-person conversation mode with speaker-specific controls.
+4. Add settings and configurable speech behavior.
+5. Add robust network, permission, and translation error states.
 6. Add automated tests and production configuration.
 7. Build and validate the app on a physical iPhone.
 
