@@ -36,7 +36,7 @@ jobs:
             -project BGTalk.xcodeproj \
             -scheme BGTalk \
             -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' \
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO \
             test
