@@ -19,3 +19,14 @@ targets:
         PRODUCT_NAME: BGTalk
         TARGETED_DEVICE_FAMILY: "1"
         SUPPORTS_MACCATALYST: NO
+  BGTalkTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: BGTalkTests
+    dependencies:
+      - target: BGTalk
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kiddbg.BGTalkTests
+        PRODUCT_NAME: BGTalkTests
