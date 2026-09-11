@@ -55,29 +55,41 @@ private fun BGTalkScreen() {
     var translation by rememberSaveable { mutableStateOf("") }
     var status by rememberSaveable { mutableStateOf("") }
     var conversationMode by rememberSaveable { mutableStateOf(false) }
+    var historyMode by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val service = remember { TranslationService() }
     val context = LocalContext.current
     val speech = remember(context) { SpeechManager(context) }
+    val historyStore = remember(context) { ConversationHistoryStore(context) }
     val messages = remember { mutableStateOf(listOf<ConversationMessage>()) }
 
     DisposableEffect(Unit) { onDispose { speech.release() } }
 
     MaterialTheme {
-        if (conversationMode) {
-            ConversationScreen(
+        when {
+            historyMode -> HistoryScreen(
+                messages = historyStore.load(),
+                onBack = { historyMode = false },
+                onClear = { historyStore.clear(); historyMode = false }
+            )
+            conversationMode -> ConversationScreen(
                 source = source,
                 target = target,
                 messages = messages.value,
                 onBack = { conversationMode = false },
                 onSwap = { val old = source; source = target; target = old },
+                onClear = { messages.value = emptyList() },
                 onSpeak = { speaker, language, otherLanguage ->
                     speech.startListening(language, { recognized ->
                         if (recognized.isBlank()) return@startListening
                         scope.launch {
                             try {
+                                status = "Translating…"
                                 val translated = service.translate(recognized, language, otherLanguage)
-                                messages.value = messages.value + ConversationMessage(speaker, recognized, translated, language, otherLanguage)
+                                val updated = messages.value + ConversationMessage(speaker, recognized, translated, language, otherLanguage)
+                                messages.value = updated
+                                historyStore.save(updated)
+                                status = ""
                                 speech.speak(translated, otherLanguage)
                             } catch (error: Exception) {
                                 status = error.message ?: "Translation failed"
@@ -87,32 +99,35 @@ private fun BGTalkScreen() {
                 },
                 status = status
             )
-        } else {
-            Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.Top) {
-                Text("BGTalk", style = MaterialTheme.typography.headlineLarge)
-                Text("Bulgarian • English • Spanish", style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.height(20.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { source = nextLanguage(source) }, modifier = Modifier.weight(1f)) { Text(source.displayName) }
-                    Button(onClick = { val old = source; source = target; target = old }) { Text("⇄") }
-                    OutlinedButton(onClick = { target = nextLanguage(target) }, modifier = Modifier.weight(1f)) { Text(target.displayName) }
+            else -> {
+                Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.Top) {
+                    Text("BGTalk", style = MaterialTheme.typography.headlineLarge)
+                    Text("Bulgarian • English • Spanish", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(20.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { source = nextLanguage(source) }, modifier = Modifier.weight(1f)) { Text(source.displayName) }
+                        Button(onClick = { val old = source; source = target; target = old }) { Text("⇄") }
+                        OutlinedButton(onClick = { target = nextLanguage(target) }, modifier = Modifier.weight(1f)) { Text(target.displayName) }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), label = { Text("Speak or type") }, minLines = 4)
+                    Spacer(Modifier.height(12.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { speech.startListening(source, { result -> text = result }, { error -> status = error }) }, modifier = Modifier.weight(1f)) { Text("🎙 Speak") }
+                        Button(onClick = { scope.launch { status = "Translating…"; try { translation = service.translate(text, source, target); status = "" } catch (error: Exception) { status = error.message ?: "Translation failed" } } }, enabled = text.isNotBlank(), modifier = Modifier.weight(1f)) { Text("Translate") }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    Text("Translation", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(6.dp))
+                    Text(translation.ifEmpty { "Your translation will appear here." })
+                    if (status.isNotEmpty()) { Spacer(Modifier.height(8.dp)); Text(status) }
+                    Spacer(Modifier.height(16.dp))
+                    OutlinedButton(onClick = { speech.speak(translation, target) }, enabled = translation.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("🔊 Play translation") }
+                    Spacer(Modifier.height(10.dp))
+                    Button(onClick = { conversationMode = true; messages.value = emptyList(); status = "" }, modifier = Modifier.fillMaxWidth()) { Text("👥 Two-Person Conversation") }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = { historyMode = true }, modifier = Modifier.fillMaxWidth()) { Text("🕘 Conversation History") }
                 }
-                Spacer(Modifier.height(16.dp))
-                OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), label = { Text("Speak or type") }, minLines = 4)
-                Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { speech.startListening(source, { result -> text = result }, { error -> status = error }) }, modifier = Modifier.weight(1f)) { Text("🎙 Speak") }
-                    Button(onClick = { scope.launch { status = "Translating…"; try { translation = service.translate(text, source, target); status = "" } catch (error: Exception) { status = error.message ?: "Translation failed" } } }, enabled = text.isNotBlank(), modifier = Modifier.weight(1f)) { Text("Translate") }
-                }
-                Spacer(Modifier.height(16.dp))
-                Text("Translation", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(6.dp))
-                Text(translation.ifEmpty { "Your translation will appear here." })
-                if (status.isNotEmpty()) { Spacer(Modifier.height(8.dp)); Text(status) }
-                Spacer(Modifier.height(16.dp))
-                OutlinedButton(onClick = { speech.speak(translation, target) }, enabled = translation.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("🔊 Play translation") }
-                Spacer(Modifier.height(10.dp))
-                Button(onClick = { conversationMode = true; messages.value = emptyList(); status = "" }, modifier = Modifier.fillMaxWidth()) { Text("👥 Two-Person Conversation") }
             }
         }
     }
@@ -125,6 +140,7 @@ private fun ConversationScreen(
     messages: List<ConversationMessage>,
     onBack: () -> Unit,
     onSwap: () -> Unit,
+    onClear: () -> Unit,
     onSpeak: (Int, AppLanguage, AppLanguage) -> Unit,
     status: String
 ) {
@@ -150,6 +166,37 @@ private fun ConversationScreen(
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { onSpeak(1, source, target) }, modifier = Modifier.weight(1f)) { Text("🎙 Person 1") }
             Button(onClick = { onSpeak(2, target, source) }, modifier = Modifier.weight(1f)) { Text("🎙 Person 2") }
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onClear, enabled = messages.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Text("Clear Current Conversation") }
+    }
+}
+
+@Composable
+private fun HistoryScreen(
+    messages: List<ConversationMessage>,
+    onBack: () -> Unit,
+    onClear: () -> Unit
+) {
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onBack) { Text("Back") }
+            Text("History", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            OutlinedButton(onClick = onClear, enabled = messages.isNotEmpty()) { Text("Clear") }
+        }
+        Spacer(Modifier.height(12.dp))
+        if (messages.isEmpty()) {
+            Text("No saved conversations yet.")
+        } else {
+            LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(messages) { message ->
+                    Column(Modifier.fillMaxWidth()) {
+                        Text("Person ${message.speaker} • ${message.source.displayName} → ${message.target.displayName}", style = MaterialTheme.typography.labelMedium)
+                        Text(message.original, style = MaterialTheme.typography.bodyLarge)
+                        Text("→ ${message.translation}", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
         }
     }
 }
