@@ -24,10 +24,11 @@ struct ContentView: View {
                     languageControls
 
                     if conversationMode {
-                        conversationModeCard
+                        ConversationModeView(firstLanguage: sourceLanguage, secondLanguage: targetLanguage)
+                    } else {
+                        messageComposer
                     }
 
-                    messageComposer
                     historySection
                 }
                 .padding()
@@ -37,9 +38,7 @@ struct ContentView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Toggle("Conversation mode", isOn: $conversationMode)
-                        Button(role: .destructive) {
-                            clearHistory()
-                        } label: {
+                        Button(role: .destructive) { clearHistory() } label: {
                             Label("Clear history", systemImage: "trash")
                         }
                         .disabled(messages.isEmpty)
@@ -62,10 +61,8 @@ struct ContentView: View {
 
     private var header: some View {
         VStack(spacing: 5) {
-            Text("BGTalk")
-                .font(.largeTitle.bold())
-            Text("Bulgarian • English • Spanish")
-                .foregroundStyle(.secondary)
+            Text("BGTalk").font(.largeTitle.bold())
+            Text("Bulgarian • English • Spanish").foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -73,58 +70,33 @@ struct ContentView: View {
     private var languageControls: some View {
         HStack(spacing: 10) {
             LanguagePicker(title: "From", selection: $sourceLanguage)
-
-            Button {
-                swapLanguages()
-            } label: {
+            Button { swapLanguages() } label: {
                 Image(systemName: "arrow.left.arrow.right")
                     .font(.headline)
                     .frame(width: 38, height: 38)
                     .background(.thinMaterial, in: Circle())
             }
             .accessibilityLabel("Swap languages")
-
             LanguagePicker(title: "To", selection: $targetLanguage)
         }
     }
 
-    private var conversationModeCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Two-person conversation", systemImage: "person.2.fill")
-                .font(.headline)
-            Text("Speak in \(sourceLanguage.displayName). BGTalk translates into \(targetLanguage.displayName) and can read the result aloud.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
-    }
-
     private var messageComposer: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Your message")
-                .font(.caption.bold())
-                .foregroundStyle(.secondary)
-
+            Text("Your message").font(.caption.bold()).foregroundStyle(.secondary)
             Text(speechRecognizer.transcript.isEmpty ? "Speak into the microphone…" : speechRecognizer.transcript)
                 .frame(maxWidth: .infinity, minHeight: 85, alignment: .topLeading)
                 .padding()
                 .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
 
-            Text("Translation")
-                .font(.caption.bold())
-                .foregroundStyle(.secondary)
-
+            Text("Translation").font(.caption.bold()).foregroundStyle(.secondary)
             Text(isTranslating ? "Translating…" : (translatedText.isEmpty ? "Your translation will appear here" : translatedText))
                 .frame(maxWidth: .infinity, minHeight: 85, alignment: .topLeading)
                 .padding()
                 .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
 
             HStack(spacing: 14) {
-                Button {
-                    Task { await toggleListening() }
-                } label: {
+                Button { Task { await toggleListening() } } label: {
                     Image(systemName: speechRecognizer.isListening ? "stop.fill" : "mic.fill")
                         .font(.system(size: 26, weight: .semibold))
                         .frame(width: 76, height: 76)
@@ -135,31 +107,24 @@ struct ContentView: View {
                 .disabled(isTranslating)
 
                 if !translatedText.isEmpty {
-                    Button {
-                        speechSynthesizer.speak(translatedText, language: targetLanguage)
-                    } label: {
-                        Label("Play", systemImage: "speaker.wave.2.fill")
-                            .frame(maxWidth: .infinity)
+                    Button { speechSynthesizer.speak(translatedText, language: targetLanguage) } label: {
+                        Label("Play", systemImage: "speaker.wave.2.fill").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
                 }
             }
 
             Text(speechRecognizer.isListening ? "Listening…" : (isTranslating ? "Translating…" : "Ready"))
-                .font(.headline)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
+                .font(.headline).foregroundStyle(.secondary).frame(maxWidth: .infinity)
         }
     }
 
     private var historySection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Conversation history")
-                    .font(.headline)
+                Text("Conversation history").font(.headline)
                 Spacer()
-                Text("\(messages.count)")
-                    .foregroundStyle(.secondary)
+                Text("\(messages.count)").foregroundStyle(.secondary)
             }
 
             if messages.isEmpty {
@@ -168,17 +133,12 @@ struct ContentView: View {
                 ForEach(messages) { message in
                     VStack(alignment: .leading, spacing: 7) {
                         HStack {
-                            Text(languageName(for: message.sourceLanguage))
-                                .font(.caption.bold())
+                            Text(languageName(for: message.sourceLanguage)).font(.caption.bold())
                             Spacer()
-                            Text(message.createdAt, style: .time)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            Text(message.createdAt, style: .time).font(.caption).foregroundStyle(.secondary)
                         }
                         Text(message.sourceText)
-                        Text(message.translatedText)
-                            .foregroundStyle(.secondary)
-
+                        Text(message.translatedText).foregroundStyle(.secondary)
                         Button {
                             let target = AppLanguage(rawValue: message.targetLanguage) ?? .bulgarian
                             speechSynthesizer.speak(message.translatedText, language: target)
@@ -212,26 +172,12 @@ struct ContentView: View {
     private func translate(_ text: String) async {
         let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return }
-
         isTranslating = true
         defer { isTranslating = false }
-
         do {
-            let result = try await translationService.translate(
-                text: cleaned,
-                from: sourceLanguage,
-                to: targetLanguage
-            )
+            let result = try await translationService.translate(text: cleaned, from: sourceLanguage, to: targetLanguage)
             translatedText = result.translatedText
-
-            modelContext.insert(
-                ConversationMessage(
-                    sourceLanguage: sourceLanguage,
-                    targetLanguage: targetLanguage,
-                    sourceText: cleaned,
-                    translatedText: result.translatedText
-                )
-            )
+            modelContext.insert(ConversationMessage(sourceLanguage: sourceLanguage, targetLanguage: targetLanguage, sourceText: cleaned, translatedText: result.translatedText))
             try? modelContext.save()
             speechSynthesizer.speak(result.translatedText, language: targetLanguage)
         } catch {
@@ -247,9 +193,7 @@ struct ContentView: View {
     }
 
     private func clearHistory() {
-        for message in messages {
-            modelContext.delete(message)
-        }
+        for message in messages { modelContext.delete(message) }
         try? modelContext.save()
     }
 
@@ -264,9 +208,7 @@ private struct LanguagePicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text(title).font(.caption).foregroundStyle(.secondary)
             Picker(title, selection: $selection) {
                 ForEach(AppLanguage.allCases) { language in
                     Text(language.displayName).tag(language)
@@ -282,6 +224,5 @@ private struct LanguagePicker: View {
 }
 
 #Preview {
-    ContentView()
-        .modelContainer(for: ConversationMessage.self, inMemory: true)
+    ContentView().modelContainer(for: ConversationMessage.self, inMemory: true)
 }
