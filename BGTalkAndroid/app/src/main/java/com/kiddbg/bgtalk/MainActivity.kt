@@ -64,27 +64,17 @@ private fun BGTalkScreen() {
             Text("BGTalk", style = MaterialTheme.typography.headlineLarge)
             Text("Bulgarian • English • Spanish", style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(20.dp))
-
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { source = nextLanguage(source) }, modifier = Modifier.weight(1f)) { Text(source.displayName) }
                 Button(onClick = { val old = source; source = target; target = old }) { Text("⇄") }
                 OutlinedButton(onClick = { target = nextLanguage(target) }, modifier = Modifier.weight(1f)) { Text(target.displayName) }
             }
-
             Spacer(Modifier.height(16.dp))
             OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), label = { Text("Speak or type") }, minLines = 4)
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = {
-                    speech.startListening(source, { result -> text = result }, { error -> status = error })
-                }, modifier = Modifier.weight(1f)) { Text("🎙 Speak") }
-                Button(onClick = {
-                    scope.launch {
-                        status = "Translating…"
-                        try { translation = service.translate(text, source, target); status = "" }
-                        catch (error: Exception) { status = error.message ?: "Translation failed" }
-                    }
-                }, enabled = text.isNotBlank(), modifier = Modifier.weight(1f)) { Text("Translate") }
+                Button(onClick = { speech.startListening(source, { result -> text = result }, { error -> status = error }) }, modifier = Modifier.weight(1f)) { Text("🎙 Speak") }
+                Button(onClick = { scope.launch { status = "Translating…"; try { translation = service.translate(text, source, target); status = "" } catch (error: Exception) { status = error.message ?: "Translation failed" } } }, enabled = text.isNotBlank(), modifier = Modifier.weight(1f)) { Text("Translate") }
             }
             Spacer(Modifier.height(16.dp))
             Text("Translation", style = MaterialTheme.typography.titleMedium)
