@@ -16,13 +16,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -33,10 +36,13 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun BGTalkScreen() {
-    var source by rememberSaveable { mutableStateOf("English") }
-    var target by rememberSaveable { mutableStateOf("Bulgarian") }
+    var source by rememberSaveable { mutableStateOf(AppLanguage.ENGLISH) }
+    var target by rememberSaveable { mutableStateOf(AppLanguage.BULGARIAN) }
     var text by rememberSaveable { mutableStateOf("") }
     var translation by rememberSaveable { mutableStateOf("") }
+    var status by rememberSaveable { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    val service = remember { TranslationService() }
 
     MaterialTheme {
         Column(
@@ -49,7 +55,7 @@ private fun BGTalkScreen() {
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { source = nextLanguage(source) }, modifier = Modifier.weight(1f)) {
-                    Text(source)
+                    Text(source.displayName)
                 }
                 Button(onClick = {
                     val old = source
@@ -57,7 +63,7 @@ private fun BGTalkScreen() {
                     target = old
                 }) { Text("⇄") }
                 OutlinedButton(onClick = { target = nextLanguage(target) }, modifier = Modifier.weight(1f)) {
-                    Text(target)
+                    Text(target.displayName)
                 }
             }
 
@@ -70,13 +76,29 @@ private fun BGTalkScreen() {
                 minLines = 4
             )
             Spacer(Modifier.height(12.dp))
-            Button(onClick = { translation = "Translation will connect to the BGTalk backend." }, modifier = Modifier.fillMaxWidth()) {
-                Text("Translate")
-            }
+            Button(
+                onClick = {
+                    scope.launch {
+                        status = "Translating…"
+                        try {
+                            translation = service.translate(text, source, target)
+                            status = ""
+                        } catch (error: Exception) {
+                            status = error.message ?: "Translation failed"
+                        }
+                    }
+                },
+                enabled = text.isNotBlank(),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Translate") }
             Spacer(Modifier.height(16.dp))
             Text("Translation", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(6.dp))
             Text(translation.ifEmpty { "Your translation will appear here." })
+            if (status.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text(status)
+            }
             Spacer(Modifier.height(24.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { }, modifier = Modifier.weight(1f)) { Text("🎙 Speak") }
@@ -86,8 +108,8 @@ private fun BGTalkScreen() {
     }
 }
 
-private fun nextLanguage(current: String): String = when (current) {
-    "English" -> "Bulgarian"
-    "Bulgarian" -> "Spanish"
-    else -> "English"
+private fun nextLanguage(current: AppLanguage): AppLanguage = when (current) {
+    AppLanguage.ENGLISH -> AppLanguage.BULGARIAN
+    AppLanguage.BULGARIAN -> AppLanguage.SPANISH
+    AppLanguage.SPANISH -> AppLanguage.ENGLISH
 }
