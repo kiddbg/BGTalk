@@ -50,6 +50,7 @@ struct RemoteTranslationService: TranslationService {
     func translate(text: String, from source: AppLanguage, to target: AppLanguage) async throws -> TranslationResult {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
+        request.timeoutInterval = 15
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.httpBody = try JSONEncoder().encode(
@@ -64,11 +65,17 @@ struct RemoteTranslationService: TranslationService {
             throw TranslationServiceError.serverError(httpResponse.statusCode)
         }
 
-        let result = try JSONDecoder().decode(TranslationResult.self, from: data)
-        guard !result.translatedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw TranslationServiceError.emptyTranslation
+        do {
+            let result = try JSONDecoder().decode(TranslationResult.self, from: data)
+            guard !result.translatedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw TranslationServiceError.emptyTranslation
+            }
+            return result
+        } catch let error as TranslationServiceError {
+            throw error
+        } catch {
+            throw TranslationServiceError.invalidResponse
         }
-        return result
     }
 }
 
