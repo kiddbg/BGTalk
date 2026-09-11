@@ -16,6 +16,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.kiddbg.BGTalk
         INFOPLIST_FILE: BGTalkApp/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
         PRODUCT_NAME: BGTalk
         TARGETED_DEVICE_FAMILY: "1"
         SUPPORTS_MACCATALYST: NO
