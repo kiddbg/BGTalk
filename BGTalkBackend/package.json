@@ -7,7 +7,6 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "@google-cloud/translate": "^9.2.0",
     "express": "^5.1.0"
   }
 }
