@@ -12,8 +12,8 @@ struct ContentView: View {
     @State private var isTranslating = false
     @State private var conversationMode = false
     @State private var showAuthorizationAlert = false
+    @State private var showTranslationSettings = false
 
-    private let translationService: TranslationService = MockTranslationService()
     private let speechSynthesizer = SpeechSynthesizer()
 
     var body: some View {
@@ -38,6 +38,11 @@ struct ContentView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Toggle("Conversation mode", isOn: $conversationMode)
+                        Button {
+                            showTranslationSettings = true
+                        } label: {
+                            Label("Translation server", systemImage: "server.rack")
+                        }
                         Button(role: .destructive) { clearHistory() } label: {
                             Label("Clear history", systemImage: "trash")
                         }
@@ -46,6 +51,9 @@ struct ContentView: View {
                         Image(systemName: "ellipsis.circle")
                     }
                 }
+            }
+            .sheet(isPresented: $showTranslationSettings) {
+                TranslationSettingsView()
             }
             .task {
                 await speechRecognizer.requestAuthorization()
@@ -175,13 +183,13 @@ struct ContentView: View {
         isTranslating = true
         defer { isTranslating = false }
         do {
-            let result = try await translationService.translate(text: cleaned, from: sourceLanguage, to: targetLanguage)
+            let result = try await TranslationServiceFactory.makeService().translate(text: cleaned, from: sourceLanguage, to: targetLanguage)
             translatedText = result.translatedText
             modelContext.insert(ConversationMessage(sourceLanguage: sourceLanguage, targetLanguage: targetLanguage, sourceText: cleaned, translatedText: result.translatedText))
             try? modelContext.save()
             speechSynthesizer.speak(result.translatedText, language: targetLanguage)
         } catch {
-            translatedText = "Translation unavailable."
+            translatedText = "Translation unavailable. Check Translation Server settings."
         }
     }
 
