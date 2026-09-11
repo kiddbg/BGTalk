@@ -1,14 +1,13 @@
 import express from "express";
-import { TranslationServiceClient } from "@google-cloud/translate";
 
 const app = express();
 app.use(express.json({ limit: "64kb" }));
 
 const port = Number(process.env.PORT || 8080);
-const client = new TranslationServiceClient();
+const supportedLanguages = new Set(["bg", "en", "es"]);
 
 function providerConfigured() {
-  return Boolean(process.env.GOOGLE_TRANSLATE_API_KEY || process.env.GOOGLE_CLOUD_PROJECT);
+  return Boolean(process.env.DEEPL_API_KEY);
 }
 
 app.get("/health", (_req, res) => {
@@ -16,29 +15,31 @@ app.get("/health", (_req, res) => {
     status: "ok",
     service: "BGTalk translation backend",
     providerConfigured: providerConfigured(),
-    provider: process.env.GOOGLE_TRANSLATE_API_KEY ? "google-api-key" : "google-cloud",
+    provider: providerConfigured() ? "deepl" : "none",
   });
 });
 
-async function translateWithApiKey(text, sourceLanguage, targetLanguage, apiKey) {
-  const url = "https://translation.googleapis.com/language/translate/v2";
-  const response = await fetch(`${url}?key=${encodeURIComponent(apiKey)}`, {
+async function translateWithDeepL(text, sourceLanguage, targetLanguage, apiKey) {
+  const response = await fetch("https://api-free.deepl.com/v2/translate", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Authorization": `DeepL-Auth-Key ${apiKey}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({
-      q: text,
-      source: sourceLanguage,
-      target: targetLanguage,
-      format: "text",
+      text: [text],
+      source_lang: sourceLanguage.toUpperCase(),
+      target_lang: targetLanguage.toUpperCase(),
     }),
   });
 
   if (!response.ok) {
-    throw new Error(`Google API returned HTTP ${response.status}`);
+    const detail = await response.text().catch(() => "");
+    throw new Error(`DeepL API returned HTTP ${response.status}: ${detail}`);
   }
 
   const data = await response.json();
-  return data?.data?.translations?.[0]?.translatedText?.trim() || "";
+  return data?.translations?.[0]?.text?.trim() || "";
 }
 
 app.post("/translate", async (req, res) => {
@@ -47,36 +48,27 @@ app.post("/translate", async (req, res) => {
   if (typeof text !== "string" || !text.trim() || text.length > 5000) {
     return res.status(400).json({ error: "text must be between 1 and 5000 characters" });
   }
-  if (!["bg", "en", "es"].includes(sourceLanguage) || !["bg", "en", "es"].includes(targetLanguage)) {
+
+  if (!supportedLanguages.has(sourceLanguage) || !supportedLanguages.has(targetLanguage)) {
     return res.status(400).json({ error: "Unsupported language" });
   }
+
   if (sourceLanguage === targetLanguage) {
     return res.json({ translatedText: text });
   }
 
+  const apiKey = process.env.DEEPL_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: "Translation provider is not configured" });
+  }
+
   try {
-    const apiKey = process.env.GOOGLE_TRANSLATE_API_KEY;
-    let translatedText = "";
-
-    if (apiKey) {
-      translatedText = await translateWithApiKey(text, sourceLanguage, targetLanguage, apiKey);
-    } else {
-      const projectId = process.env.GOOGLE_CLOUD_PROJECT;
-      if (!projectId) {
-        return res.status(503).json({ error: "Translation provider is not configured" });
-      }
-
-      const parent = `projects/${projectId}/locations/global`;
-      const [response] = await client.translateText({
-        parent,
-        contents: [text],
-        mimeType: "text/plain",
-        sourceLanguageCode: sourceLanguage,
-        targetLanguageCode: targetLanguage,
-      });
-
-      translatedText = response.translations?.[0]?.translatedText?.trim() || "";
-    }
+    const translatedText = await translateWithDeepL(
+      text,
+      sourceLanguage,
+      targetLanguage,
+      apiKey,
+    );
 
     if (!translatedText) {
       return res.status(502).json({ error: "Translation provider returned no text" });
