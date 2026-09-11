@@ -2,26 +2,27 @@
 
 BGTalk is an iPhone real-time conversation translation app focused on Bulgarian, English, and Spanish.
 
-## Implemented foundation
+## Implemented
 
 - SwiftUI native iPhone interface
 - Bulgarian, English, and Spanish language selection
 - Native iOS speech recognition pipeline
 - Language-specific speech locales
 - Microphone and speech-recognition permission descriptions
-- Translation service abstraction
-- Generic remote translation backend client
-- Translation result model
+- Remote translation backend client
+- Production backend hosted on Railway
+- Google Cloud Translation integration with API-key fallback support
+- Real-time partial-result translation with debounce and stale-request protection
+- Final translation saved to SwiftData conversation history
 - Translated speech playback with AVSpeechSynthesizer
-- Persistent local conversation history using SwiftData
-- Language swapping
-- Dedicated two-person conversation mode
-- Automated iOS build and unit-test workflow
+- Two-person conversation mode
+- Language-specific speech synthesis
 - XcodeGen project configuration
+- Automated unit-test coverage for supported languages and translation behavior
 
 ## Translation backend contract
 
-BGTalk now includes a provider-independent `RemoteTranslationService`. It sends:
+BGTalk sends:
 
 ```json
 {
@@ -39,25 +40,29 @@ and expects:
 }
 ```
 
-This keeps provider credentials out of the iPhone app and allows the backend to use a production translation provider without changing the speech or UI layers.
+Provider credentials remain on the backend and are never embedded in the iPhone app.
 
-## Current development stage
+## Production backend
 
-The native capture → translation-service → speech-output architecture is in place. The app currently uses a mock translator by default while the production backend is being prepared.
+The Railway service uses `/BGTalkBackend` as its root directory, listens on port 8080, and exposes `/health` and `/translate` endpoints.
 
-## Remaining implementation stages
+The iOS app defaults to the production translation endpoint:
 
-1. Connect a production translation provider to the backend contract.
-2. Wire the remote service into the app configuration.
-3. Implement true streaming/partial-result translation.
-4. Add settings and configurable speech behavior.
-5. Add robust network, permission, and translation error states.
-6. Expand automated tests and production configuration.
-7. Build and validate the app on a physical iPhone.
+`https://bgtalk-backend-production.up.railway.app/translate`
+
+A custom endpoint can still be configured through the app's translation-service setting.
+
+## Remaining steps
+
+1. Configure the Google Translation credential directly in Railway.
+2. Generate the Xcode project on a Mac with XcodeGen.
+3. Build and run the unit tests in Xcode.
+4. Install on a physical iPhone and validate microphone, speech recognition, Bulgarian/English/Spanish translation, and speech playback.
+5. Tune latency and translation behavior after real-device testing.
 
 ## Generating the Xcode project
 
-The repository includes `project.yml` for XcodeGen. On a Mac with Xcode and XcodeGen installed, run:
+On a Mac with Xcode and XcodeGen installed:
 
 ```bash
 xcodegen generate
