@@ -9,7 +9,6 @@ final class SpeechRecognizer: ObservableObject {
     @Published private(set) var authorizationDenied = false
 
     private let audioEngine = AVAudioEngine()
-    private let speechRecognizer = SFSpeechRecognizer()
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
 
@@ -28,8 +27,12 @@ final class SpeechRecognizer: ObservableObject {
         stopListening()
         guard !authorizationDenied else { return }
 
-        let recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeIdentifier))
-        guard let recognizer, recognizer.isAvailable else { return }
+        guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeIdentifier)),
+              recognizer.isAvailable else {
+            return
+        }
+
+        transcript = ""
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
