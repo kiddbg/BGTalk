@@ -29,3 +29,14 @@ jobs:
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO \
             build
+
+      - name: Run unit tests
+        run: |
+          xcodebuild \
+            -project BGTalk.xcodeproj \
+            -scheme BGTalk \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            test
