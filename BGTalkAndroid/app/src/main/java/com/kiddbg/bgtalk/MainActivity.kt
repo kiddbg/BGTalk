@@ -33,6 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -62,8 +64,14 @@ private fun BGTalkScreen() {
     val speech = remember(context) { SpeechManager(context) }
     val historyStore = remember(context) { ConversationHistoryStore(context) }
     val messages = remember { mutableStateOf(listOf<ConversationMessage>()) }
+    var partialTranslationJob by remember { mutableStateOf<Job?>(null) }
 
-    DisposableEffect(Unit) { onDispose { speech.release() } }
+    DisposableEffect(Unit) {
+        onDispose {
+            partialTranslationJob?.cancel()
+            speech.release()
+        }
+    }
 
     MaterialTheme {
         when {
@@ -113,7 +121,35 @@ private fun BGTalkScreen() {
                     OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), label = { Text("Speak or type") }, minLines = 4)
                     Spacer(Modifier.height(12.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { speech.startListening(source, { result -> text = result }, { error -> status = error }) }, modifier = Modifier.weight(1f)) { Text("🎙 Speak") }
+                        Button(onClick = {
+                            status = "Listening…"
+                            speech.startListening(
+                                source,
+                                { result ->
+                                    text = result
+                                    status = ""
+                                    partialTranslationJob?.cancel()
+                                    partialTranslationJob = null
+                                    scope.launch {
+                                        try { translation = service.translate(result, source, target) }
+                                        catch (_: Exception) { }
+                                    }
+                                },
+                                { error -> status = error },
+                                { partial ->
+                                    text = partial
+                                    status = "Translating…"
+                                    partialTranslationJob?.cancel()
+                                    partialTranslationJob = scope.launch {
+                                        delay(500)
+                                        try {
+                                            translation = service.translate(partial, source, target)
+                                            status = "Listening…"
+                                        } catch (_: Exception) { }
+                                    }
+                                }
+                            )
+                        }, modifier = Modifier.weight(1f)) { Text("🎙 Speak") }
                         Button(onClick = { scope.launch { status = "Translating…"; try { translation = service.translate(text, source, target); status = "" } catch (error: Exception) { status = error.message ?: "Translation failed" } } }, enabled = text.isNotBlank(), modifier = Modifier.weight(1f)) { Text("Translate") }
                     }
                     Spacer(Modifier.height(16.dp))
