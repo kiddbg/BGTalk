@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var translatedText = ""
     @State private var isTranslating = false
     @State private var conversationMode = false
+    @State private var showAuthorizationAlert = false
 
     private let translationService: TranslationService = MockTranslationService()
     private let speechSynthesizer = SpeechSynthesizer()
@@ -49,8 +50,9 @@ struct ContentView: View {
             }
             .task {
                 await speechRecognizer.requestAuthorization()
+                showAuthorizationAlert = speechRecognizer.authorizationDenied
             }
-            .alert("Microphone access needed", isPresented: .constant(speechRecognizer.authorizationDenied)) {
+            .alert("Microphone access needed", isPresented: $showAuthorizationAlert) {
                 Button("OK") { }
             } message: {
                 Text("Allow microphone and speech recognition access in Settings to use BGTalk voice translation.")
@@ -130,6 +132,7 @@ struct ContentView: View {
                         .background(speechRecognizer.isListening ? Color.red : Color.accentColor, in: Circle())
                 }
                 .accessibilityLabel(speechRecognizer.isListening ? "Stop listening" : "Start listening")
+                .disabled(isTranslating)
 
                 if !translatedText.isEmpty {
                     Button {
@@ -142,7 +145,7 @@ struct ContentView: View {
                 }
             }
 
-            Text(speechRecognizer.isListening ? "Listening…" : "Ready")
+            Text(speechRecognizer.isListening ? "Listening…" : (isTranslating ? "Translating…" : "Ready"))
                 .font(.headline)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity)
@@ -198,7 +201,11 @@ struct ContentView: View {
             await translate(speechRecognizer.transcript)
         } else {
             translatedText = ""
-            try? speechRecognizer.startListening(localeIdentifier: sourceLanguage.speechLocale)
+            do {
+                try speechRecognizer.startListening(localeIdentifier: sourceLanguage.speechLocale)
+            } catch {
+                showAuthorizationAlert = true
+            }
         }
     }
 
