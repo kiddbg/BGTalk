@@ -13,7 +13,6 @@ struct ConversationModeView: View {
     let firstLanguage: AppLanguage
     let secondLanguage: AppLanguage
 
-    private let translationService: TranslationService = MockTranslationService()
     private let synthesizer = SpeechSynthesizer()
 
     private var sourceLanguage: AppLanguage {
@@ -126,13 +125,13 @@ struct ConversationModeView: View {
         defer { isTranslating = false }
 
         do {
-            let result = try await translationService.translate(text: cleaned, from: sourceLanguage, to: targetLanguage)
+            let result = try await TranslationServiceFactory.makeService().translate(text: cleaned, from: sourceLanguage, to: targetLanguage)
             translation = result.translatedText
             modelContext.insert(ConversationMessage(sourceLanguage: sourceLanguage, targetLanguage: targetLanguage, sourceText: cleaned, translatedText: result.translatedText))
             try? modelContext.save()
             synthesizer.speak(result.translatedText, language: targetLanguage)
         } catch {
-            translation = "Translation unavailable."
+            translation = "Translation unavailable. Check Translation Server settings."
         }
     }
 }
