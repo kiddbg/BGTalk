@@ -3,7 +3,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \.createdAt, order: .reverse) private var messages: [ConversationMessage]
+    @Query(sort: [SortDescriptor(\ConversationMessage.createdAt, order: .reverse)]) private var messages: [ConversationMessage]
 
     @StateObject private var speechRecognizer = SpeechRecognizer()
     @State private var sourceLanguage: AppLanguage = .english
