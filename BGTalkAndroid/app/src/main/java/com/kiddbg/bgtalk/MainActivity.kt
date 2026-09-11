@@ -28,6 +28,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
@@ -53,7 +54,8 @@ private fun BGTalkScreen() {
     var status by rememberSaveable { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val service = remember { TranslationService() }
-    val speech = remember { SpeechManager(androidx.compose.ui.platform.LocalContext.current) }
+    val context = LocalContext.current
+    val speech = remember(context) { SpeechManager(context) }
 
     DisposableEffect(Unit) { onDispose { speech.release() } }
 
