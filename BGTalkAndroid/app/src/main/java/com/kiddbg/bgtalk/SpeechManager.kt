@@ -13,7 +13,12 @@ class SpeechManager(context: Context) {
     private var recognizer: SpeechRecognizer? = null
     private var textToSpeech: TextToSpeech? = null
 
-    fun startListening(language: AppLanguage, onResult: (String) -> Unit, onError: (String) -> Unit) {
+    fun startListening(
+        language: AppLanguage,
+        onResult: (String) -> Unit,
+        onError: (String) -> Unit,
+        onPartialResult: ((String) -> Unit)? = null
+    ) {
         if (!SpeechRecognizer.isRecognitionAvailable(appContext)) {
             onError("Speech recognition is not available on this device")
             return
@@ -25,13 +30,16 @@ class SpeechManager(context: Context) {
                     val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
                     if (!text.isNullOrBlank()) onResult(text) else onError("No speech detected")
                 }
+                override fun onPartialResults(partialResults: android.os.Bundle?) {
+                    val text = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+                    if (!text.isNullOrBlank()) onPartialResult?.invoke(text)
+                }
                 override fun onError(error: Int) { onError("Speech recognition error: $error") }
                 override fun onReadyForSpeech(params: android.os.Bundle?) = Unit
                 override fun onBeginningOfSpeech() = Unit
                 override fun onRmsChanged(rmsdB: Float) = Unit
                 override fun onBufferReceived(buffer: ByteArray?) = Unit
                 override fun onEndOfSpeech() = Unit
-                override fun onPartialResults(partialResults: android.os.Bundle?) = Unit
                 override fun onEvent(eventType: Int, params: android.os.Bundle?) = Unit
             })
             startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
