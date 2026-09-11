@@ -1,0 +1,10 @@
+import SwiftUI
+
+@main
+struct BGTalkApp: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}
