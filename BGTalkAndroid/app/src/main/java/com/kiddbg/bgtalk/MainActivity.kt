@@ -14,21 +14,26 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -180,8 +185,17 @@ private fun ConversationScreen(
     onSpeak: (Int, AppLanguage, AppLanguage) -> Unit,
     status: String
 ) {
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.lastIndex)
+        }
+    }
+
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedButton(onClick = onBack) { Text("Back") }
             Text("Conversation", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
             OutlinedButton(onClick = onSwap) { Text("⇄") }
@@ -189,12 +203,25 @@ private fun ConversationScreen(
         Spacer(Modifier.height(8.dp))
         Text("Person 1: ${source.displayName}  ↔  Person 2: ${target.displayName}")
         Spacer(Modifier.height(12.dp))
-        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             items(messages) { message ->
-                Column(Modifier.fillMaxWidth()) {
-                    Text("Person ${message.speaker} • ${message.source.displayName}", style = MaterialTheme.typography.labelMedium)
-                    Text(message.original, style = MaterialTheme.typography.bodyLarge)
-                    Text("→ ${message.translation}", style = MaterialTheme.typography.bodyMedium)
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = if (message.speaker == 1) Arrangement.Start else Arrangement.End
+                ) {
+                    Card(Modifier.widthIn(max = 340.dp)) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text("Person ${message.speaker} • ${message.source.displayName}", style = MaterialTheme.typography.labelMedium)
+                            Spacer(Modifier.height(4.dp))
+                            Text(message.original, style = MaterialTheme.typography.bodyLarge)
+                            Spacer(Modifier.height(4.dp))
+                            Text("→ ${message.translation}", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
                 }
             }
         }
@@ -215,7 +242,7 @@ private fun HistoryScreen(
     onClear: () -> Unit
 ) {
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedButton(onClick = onBack) { Text("Back") }
             Text("History", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
             OutlinedButton(onClick = onClear, enabled = messages.isNotEmpty()) { Text("Clear") }
@@ -226,10 +253,13 @@ private fun HistoryScreen(
         } else {
             LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(messages) { message ->
-                    Column(Modifier.fillMaxWidth()) {
-                        Text("Person ${message.speaker} • ${message.source.displayName} → ${message.target.displayName}", style = MaterialTheme.typography.labelMedium)
-                        Text(message.original, style = MaterialTheme.typography.bodyLarge)
-                        Text("→ ${message.translation}", style = MaterialTheme.typography.bodyMedium)
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text("Person ${message.speaker} • ${message.source.displayName} → ${message.target.displayName}", style = MaterialTheme.typography.labelMedium)
+                            Spacer(Modifier.height(4.dp))
+                            Text(message.original, style = MaterialTheme.typography.bodyLarge)
+                            Text("→ ${message.translation}", style = MaterialTheme.typography.bodyMedium)
+                        }
                     }
                 }
             }
