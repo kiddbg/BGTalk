@@ -17,24 +17,31 @@ class SpeechManager(context: Context) {
         language: AppLanguage,
         onResult: (String) -> Unit,
         onError: (String) -> Unit,
-        onPartialResult: ((String) -> Unit)? = null
+        onPartialResult: ((String) -> Unit)? = null,
+        onListeningStateChanged: ((Boolean) -> Unit)? = null
     ) {
+        stopListening()
         if (!SpeechRecognizer.isRecognitionAvailable(appContext)) {
             onError("Speech recognition is not available on this device")
             return
         }
-        recognizer?.destroy()
         recognizer = SpeechRecognizer.createSpeechRecognizer(appContext).apply {
             setRecognitionListener(object : RecognitionListener {
                 override fun onResults(results: android.os.Bundle?) {
+                    onListeningStateChanged?.invoke(false)
                     val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
                     if (!text.isNullOrBlank()) onResult(text) else onError("No speech detected")
+                    destroyRecognizer()
                 }
                 override fun onPartialResults(partialResults: android.os.Bundle?) {
                     val text = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
                     if (!text.isNullOrBlank()) onPartialResult?.invoke(text)
                 }
-                override fun onError(error: Int) { onError("Speech recognition error: $error") }
+                override fun onError(error: Int) {
+                    onListeningStateChanged?.invoke(false)
+                    onError(readableSpeechError(error))
+                    destroyRecognizer()
+                }
                 override fun onReadyForSpeech(params: android.os.Bundle?) = Unit
                 override fun onBeginningOfSpeech() = Unit
                 override fun onRmsChanged(rmsdB: Float) = Unit
@@ -48,6 +55,12 @@ class SpeechManager(context: Context) {
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             })
         }
+        onListeningStateChanged?.invoke(true)
+    }
+
+    fun stopListening() {
+        recognizer?.stopListening()
+        destroyRecognizer()
     }
 
     fun speak(text: String, language: AppLanguage) {
@@ -61,15 +74,37 @@ class SpeechManager(context: Context) {
         }
     }
 
+    fun stopSpeaking() {
+        textToSpeech?.stop()
+    }
+
     private fun speakNow(text: String, language: AppLanguage) {
         val locale = Locale.forLanguageTag(language.localeTag)
-        textToSpeech?.language = locale
+        val result = textToSpeech?.setLanguage(locale)
+        if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) return
         textToSpeech?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "BGTalkTranslation")
     }
 
-    fun release() {
+    private fun destroyRecognizer() {
         recognizer?.destroy()
         recognizer = null
+    }
+
+    private fun readableSpeechError(error: Int): String = when (error) {
+        SpeechRecognizer.ERROR_AUDIO -> "Microphone audio error"
+        SpeechRecognizer.ERROR_CLIENT -> "Speech recognition client error"
+        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission is required"
+        SpeechRecognizer.ERROR_NETWORK -> "Speech recognition network error"
+        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Speech recognition timed out"
+        SpeechRecognizer.ERROR_NO_MATCH -> "No speech detected"
+        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Speech recognition is busy"
+        SpeechRecognizer.ERROR_SERVER -> "Speech recognition server error"
+        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech detected in time"
+        else -> "Speech recognition error"
+    }
+
+    fun release() {
+        stopListening()
         textToSpeech?.stop()
         textToSpeech?.shutdown()
         textToSpeech = null
