@@ -63,6 +63,7 @@ private fun BGTalkScreen() {
     var status by rememberSaveable { mutableStateOf("") }
     var conversationMode by rememberSaveable { mutableStateOf(false) }
     var historyMode by rememberSaveable { mutableStateOf(false) }
+    var listeningSpeaker by remember { mutableStateOf<Int?>(null) }
     val scope = rememberCoroutineScope()
     val service = remember { TranslationService() }
     val context = LocalContext.current
@@ -89,26 +90,33 @@ private fun BGTalkScreen() {
                 source = source,
                 target = target,
                 messages = messages.value,
-                onBack = { conversationMode = false },
-                onSwap = { val old = source; source = target; target = old },
-                onClear = { messages.value = emptyList() },
+                listeningSpeaker = listeningSpeaker,
+                onBack = { speech.stopListening(); listeningSpeaker = null; conversationMode = false },
+                onSwap = { if (listeningSpeaker == null) { val old = source; source = target; target = old } },
+                onClear = { messages.value = emptyList(); historyStore.clear(); status = "" },
+                onStop = { speech.stopListening(); listeningSpeaker = null; status = "" },
                 onSpeak = { speaker, language, otherLanguage ->
-                    speech.startListening(language, { recognized ->
-                        if (recognized.isBlank()) return@startListening
-                        scope.launch {
-                            try {
-                                status = "Translating…"
-                                val translated = service.translate(recognized, language, otherLanguage)
-                                val updated = messages.value + ConversationMessage(speaker, recognized, translated, language, otherLanguage)
-                                messages.value = updated
-                                historyStore.save(updated)
-                                status = ""
-                                speech.speak(translated, otherLanguage)
-                            } catch (error: Exception) {
-                                status = error.message ?: "Translation failed"
+                    speech.startListening(
+                        language,
+                        { recognized ->
+                            if (recognized.isBlank()) return@startListening
+                            scope.launch {
+                                try {
+                                    status = "Translating…"
+                                    val translated = service.translate(recognized, language, otherLanguage)
+                                    val updated = messages.value + ConversationMessage(speaker, recognized, translated, language, otherLanguage)
+                                    messages.value = updated
+                                    historyStore.save(updated)
+                                    status = ""
+                                    speech.speak(translated, otherLanguage)
+                                } catch (error: Exception) {
+                                    status = error.message ?: "Translation failed"
+                                }
                             }
-                        }
-                    }, { error -> status = error })
+                        },
+                        { error -> listeningSpeaker = null; status = error },
+                        onListeningStateChanged = { listening -> listeningSpeaker = if (listening) speaker else null }
+                    )
                 },
                 status = status
             )
@@ -179,26 +187,25 @@ private fun ConversationScreen(
     source: AppLanguage,
     target: AppLanguage,
     messages: List<ConversationMessage>,
+    listeningSpeaker: Int?,
     onBack: () -> Unit,
     onSwap: () -> Unit,
     onClear: () -> Unit,
+    onStop: () -> Unit,
     onSpeak: (Int, AppLanguage, AppLanguage) -> Unit,
     status: String
 ) {
     val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
 
     LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.lastIndex)
-        }
+        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedButton(onClick = onBack) { Text("Back") }
             Text("Conversation", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-            OutlinedButton(onClick = onSwap) { Text("⇄") }
+            OutlinedButton(onClick = onSwap, enabled = listeningSpeaker == null) { Text("⇄") }
         }
         Spacer(Modifier.height(8.dp))
         Text("Person 1: ${source.displayName}  ↔  Person 2: ${target.displayName}")
@@ -226,12 +233,24 @@ private fun ConversationScreen(
             }
         }
         if (status.isNotEmpty()) { Text(status); Spacer(Modifier.height(6.dp)) }
+        if (listeningSpeaker != null) {
+            Button(onClick = onStop, modifier = Modifier.fillMaxWidth()) { Text("■ Stop Listening") }
+            Spacer(Modifier.height(8.dp))
+        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { onSpeak(1, source, target) }, modifier = Modifier.weight(1f)) { Text("🎙 Person 1") }
-            Button(onClick = { onSpeak(2, target, source) }, modifier = Modifier.weight(1f)) { Text("🎙 Person 2") }
+            Button(
+                onClick = { onSpeak(1, source, target) },
+                enabled = listeningSpeaker == null,
+                modifier = Modifier.weight(1f)
+            ) { Text(if (listeningSpeaker == 1) "Listening…" else "🎙 Person 1") }
+            Button(
+                onClick = { onSpeak(2, target, source) },
+                enabled = listeningSpeaker == null,
+                modifier = Modifier.weight(1f)
+            ) { Text(if (listeningSpeaker == 2) "Listening…" else "🎙 Person 2") }
         }
         Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = onClear, enabled = messages.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Text("Clear Current Conversation") }
+        OutlinedButton(onClick = onClear, enabled = messages.isNotEmpty() && listeningSpeaker == null, modifier = Modifier.fillMaxWidth()) { Text("Clear Current Conversation") }
     }
 }
 
