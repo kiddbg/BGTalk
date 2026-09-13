@@ -6,8 +6,14 @@ app.use(express.json({ limit: "64kb" }));
 const port = Number(process.env.PORT || 8080);
 const supportedLanguages = new Set(["bg", "en", "es"]);
 
+// Accept the correctly named variable and the legacy variable that was
+// accidentally created with leading spaces in Railway.
+function getDeepLApiKey() {
+  return process.env.DEEPL_API_KEY || process.env["        DEEPL_API_KEY"] || "";
+}
+
 function providerConfigured() {
-  return Boolean(process.env.DEEPL_API_KEY);
+  return Boolean(getDeepLApiKey());
 }
 
 app.get("/health", (_req, res) => {
@@ -57,7 +63,7 @@ app.post("/translate", async (req, res) => {
     return res.json({ translatedText: text });
   }
 
-  const apiKey = process.env.DEEPL_API_KEY;
+  const apiKey = getDeepLApiKey();
   if (!apiKey) {
     return res.status(503).json({ error: "Translation provider is not configured" });
   }
